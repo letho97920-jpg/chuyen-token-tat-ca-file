@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Chuyển file sang AI - giảm token</title>
+<style>
+:root{--bg:#f6f8f4;--card:#fff;--ink:#14231a;--mute:#5b6b60;--line:#cfd9d0;--acc:#0b7a4b;--accink:#fff;--warn:#b45309;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1a14;--card:#16261d;--ink:#eef6f0;--mute:#9db2a3;--line:#2b4034;--acc:#4ade80;--accink:#06210f;--warn:#fbbf24}}
+:root[data-theme="dark"]{--bg:#0e1a14;--card:#16261d;--ink:#eef6f0;--mute:#9db2a3;--line:#2b4034;--acc:#4ade80;--accink:#06210f;--warn:#fbbf24}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Be Vietnam Pro","Segoe UI",system-ui,sans-serif}
+main{max-width:760px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:clamp(26px,6vw,36px);line-height:1.15;margin:8px 0 6px;letter-spacing:-.01em}
+p.sub{margin:0 0 20px;color:var(--mute)}
+#drop{display:block;border:2px dashed var(--acc);border-radius:14px;padding:32px 16px;text-align:center;cursor:pointer;background:var(--card)}
+#drop.over{background:color-mix(in srgb,var(--acc) 12%,var(--card))}
+#drop b{font-size:18px}
+#drop small{display:block;color:var(--mute);margin-top:4px}
+#drop:focus-within{outline:3px solid var(--acc);outline-offset:2px}
+input[type=file]{position:absolute;opacity:0;width:1px;height:1px}
+.opts{display:flex;flex-wrap:wrap;gap:8px 20px;margin:16px 0;align-items:center}
+.opts label{display:flex;gap:6px;align-items:center;cursor:pointer}
+select{font:inherit;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+.file{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin:12px 0}
+.file h2{font-size:16px;margin:0 0 8px;word-break:break-all}
+.tag{display:inline-block;font-size:12px;font-weight:600;padding:1px 8px;border-radius:99px;border:1px solid var(--line);color:var(--mute);margin-right:6px;vertical-align:middle}
+.stats{display:flex;gap:16px;flex-wrap:wrap;margin:6px 0 10px}
+.stat{min-width:110px}
+.stat span{display:block;color:var(--mute);font-size:13px}
+.stat b{font-size:22px}
+.save b{color:var(--acc)}
+.bar{height:8px;background:var(--line);border-radius:6px;overflow:hidden;margin:6px 0 12px}
+.bar i{display:block;height:100%;background:var(--acc)}
+.pv{max-width:100%;max-height:200px;border-radius:8px;border:1px solid var(--line);margin:0 0 10px;display:block}
+textarea{width:100%;height:160px;font:13px/1.45 ui-monospace,Consolas,monospace;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px;resize:vertical}
+.btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+button{font:inherit;font-weight:600;padding:10px 16px;border-radius:10px;border:1px solid var(--acc);background:var(--acc);color:var(--accink);cursor:pointer}
+button.alt{background:transparent;color:var(--ink);border-color:var(--line)}
+button:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.msg{color:var(--warn);font-size:14px}
+.note{color:var(--mute);font-size:14px;margin-top:24px}
+</style>
+</head>
+<body>
+<main>
+<h1>Đổi file thành dạng AI đọc nhẹ</h1>
+<p class="sub">Word, PDF, Excel, ảnh. Bỏ định dạng thừa, giữ chữ và bảng. Kết quả nhẹ hơn nhiều, AI đọc nhanh và tốn ít token hơn.</p>
+
+<label id="drop" for="f">
+  <b>Chọn hoặc thả file vào đây</b>
+  <small>.docx, .pdf, .xlsx, .xls, .csv, ảnh (png, jpg, webp). Chọn được nhiều file cùng lúc. File chỉ xử lý trong máy của bạn, không tải lên đâu cả.</small>
+  <input id="f" type="file" accept=".docx,.pdf,.xlsx,.xls,.csv,image/*" multiple>
+</label>
+
+<div class="opts">
+  <label>Kiểu xuất
+    <select id="mode">
+      <option value="md">Markdown (giữ tiêu đề, danh sách, bảng)</option>
+      <option value="txt">Văn bản thuần (nhẹ nhất)</option>
+    </select>
+  </label>
+  <label><input type="checkbox" id="imgmark" checked> Ghi [Hình] thay cho ảnh (Word)</label>
+</div>
+
+<div id="out"></div>
+
+<p class="note">Token là ước tính (khoảng 1 token cho mỗi 3 ký tự tiếng Việt; ảnh tính theo số điểm ảnh), nên chỉ để so sánh. Ảnh không đổi được thành chữ: trang này chỉ thu nhỏ ảnh để AI đọc ít token hơn, bạn gửi ảnh đã thu nhỏ cho AI. PDF scan (toàn ảnh) cũng không có chữ để lấy.</p>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/turndown/7.1.2/turndown.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+const $ = s => document.querySelector(s);
+const est = t => Math.ceil(t.length / 3);
+const fmt = n => n.toLocaleString('vi-VN');
+let files = [];
+let results = [];
+if(window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+function makeTurndown(imgMark){
+  const td = new TurndownService({headingStyle:'atx',bulletListMarker:'-',emDelimiter:'*'});
+  td.addRule('img',{filter:'img',replacement:()=>imgMark?'[Hình]':''});
+  td.addRule('table',{filter:'table',replacement:(c,node)=>{
+    const rows=[...node.rows].map(r=>[...r.cells].map(x=>x.textContent.replace(/\s+/g,' ').trim().replace(/\|/g,'\\|')));
+    return mdTable(rows);
+  }});
+  return td;
+}
+
+function mdTable(rows){
+  if(!rows.length) return '';
+  const w=Math.max(...rows.map(r=>r.length));
+  const pad=r=>r.concat(Array(w-r.length).fill(''));
+  const line=r=>'| '+pad(r).join(' | ')+' |';
+  return '\n\n'+line(rows[0])+'\n| '+Array(w).fill('---').join(' | ')+' |\n'+rows.slice(1).map(line).join('\n')+'\n\n';
+}
+
+function clean(s){
+  return s.replace(/\u00a0/g,' ').replace(/[ \t]+\n/g,'\n').replace(/[ \t]{2,}/g,' ').replace(/\n{3,}/g,'\n\n').trim();
+}
+
+async function convertDocx(file){
+  const buf = await file.arrayBuffer();
+  const mode = $('#mode').value;
+  const imgMark = $('#imgmark').checked;
+  const html = (await mammoth.convertToHtml({arrayBuffer:buf},{
+    convertImage: mammoth.images.imgElement(()=>Promise.resolve({src:'x'}))
+  })).value;
+  let text;
+  if(mode==='md'){
+    text = clean(makeTurndown(imgMark).turndown(html));
+  }else{
+    const raw = (await mammoth.extractRawText({arrayBuffer:buf})).value;
+    text = clean(raw);
+  }
+  return {name:file.name, kind:'Word', size:file.size, htmlTokens:est(html), text, tokens:est(text)};
+}
+
+async function convertXlsx(file){
+  const mode = $('#mode').value;
+  const isCsv = /\.csv$/i.test(file.name);
+  const wb = isCsv ? XLSX.read(await file.text(),{type:'string'}) : XLSX.read(await file.arrayBuffer(),{type:'array'});
+  let html = 0, parts = [];
+  wb.SheetNames.forEach(n=>{
+    const ws = wb.Sheets[n];
+    html += XLSX.utils.sheet_to_html(ws).length;
+    const rows = XLSX.utils.sheet_to_json(ws,{header:1,blankrows:false,defval:''})
+      .map(r=>r.map(c=>String(c).replace(/\s+/g,' ').trim()))
+      .filter(r=>r.some(c=>c!==''));
+    if(!rows.length) return;
+    if(mode==='md') parts.push((wb.SheetNames.length>1?'## '+n:'')+mdTable(rows.map(r=>r.map(c=>c.replace(/\|/g,'\\|')))));
+    else parts.push((wb.SheetNames.length>1?'['+n+']\n':'')+rows.map(r=>r.join('\t')).join('\n'));
+  });
+  const text = clean(parts.join('\n\n'));
+  return {name:file.name, kind:isCsv?'CSV':'Excel', size:file.size, htmlTokens:Math.ceil(html/3), text, tokens:est(text)};
+}
+
+async function convertPdf(file){
+  const mode = $('#mode').value;
+  const pdf = await pdfjsLib.getDocument({data:new Uint8Array(await file.arrayBuffer())}).promise;
+  const pages = [];
+  for(let p=1;p<=pdf.numPages;p++){
+    const tc = await (await pdf.getPage(p)).getTextContent();
+    let lines=[], cur='', lastY=null;
+    tc.items.forEach(it=>{
+      if(it.str===undefined) return;
+      const y = it.transform[5];
+      if(lastY!==null && Math.abs(y-lastY)>3){ lines.push(cur); cur=''; }
+      cur += it.str + (it.hasEOL?'\n':'');
+      lastY = y;
+    });
+    lines.push(cur);
+    pages.push(clean(lines.join('\n')));
+  }
+  const all = pages.join('');
+  let text, warn='';
+  if(all.replace(/\s/g,'').length<20){
+    text=''; warn='PDF này không có chữ (có thể là bản scan). Hãy gửi ảnh từng trang cho AI đọc.';
+  }else{
+    text = clean(pages.map((t,i)=>mode==='md'?'## Trang '+(i+1)+'\n\n'+t:t).join('\n\n'));
+  }
+  return {name:file.name, kind:'PDF', size:file.size, text, tokens:est(text), pages:pdf.numPages, warn};
+}
+
+async function convertImg(file){
+  const bmp = await createImageBitmap(file);
+  const W=bmp.width, H=bmp.height, k=Math.min(1,1568/Math.max(W,H));
+  const w=Math.round(W*k), h=Math.round(H*k);
+  const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+  const cx=cv.getContext('2d'); cx.fillStyle='#fff'; cx.fillRect(0,0,w,h); cx.drawImage(bmp,0,0,w,h);
+  const blob = await new Promise(r=>cv.toBlob(r,'image/jpeg',0.85));
+  const nm = file.name.replace(/\.[^.]+$/,'')+'.jpg';
+  return {name:file.name, kind:'Ảnh', size:file.size, htmlTokens:Math.ceil(W*H/750), tokens:Math.ceil(w*h/750),
+    text:'![ảnh]('+nm+')\n\nKích thước: '+W+'x'+H+' → '+w+'x'+h+' (đã thu nhỏ, JPEG, '+Math.round(blob.size/1024)+' KB, gốc '+Math.round(file.size/1024)+' KB)',
+    blob, imgName:nm, preview:URL.createObjectURL(blob)};
+}
+
+function convert(file){
+  const n=file.name.toLowerCase();
+  if(/\.docx$/.test(n)) return convertDocx(file);
+  if(/\.(xlsx|xls|csv)$/.test(n)) return convertXlsx(file);
+  if(/\.pdf$/.test(n)) return convertPdf(file);
+  return convertImg(file);
+}
+
+async function run(){
+  const out = $('#out');
+  out.innerHTML = files.length ? '<p>Đang chuyển đổi...</p>' : '';
+  results = [];
+  for(const f of files){
+    try{ results.push(await convert(f)); }
+    catch(e){ results.push({name:f.name,error:'Không đọc được file này. Hãy kiểm tra file có hỏng không (Word phải là .docx, không phải .doc cũ).'}); }
+  }
+  render();
+}
+
+function esc(s){return s.replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+
+function render(){
+  const out = $('#out');
+  out.innerHTML = '';
+  results.forEach((r,i)=>{
+    const d = document.createElement('div');
+    d.className='file';
+    if(r.error){ d.innerHTML=`<h2>${esc(r.name)}</h2><p class="msg">${r.error}</p>`; out.append(d); return; }
+    const hasBase = r.htmlTokens>0;
+    const save = hasBase ? Math.max(0,Math.round(100-r.tokens*100/r.htmlTokens)) : null;
+    const baseLbl = r.kind==='Ảnh' ? 'Token gốc (ước tính)' : 'Token gốc (HTML)';
+    d.innerHTML = `<h2><span class="tag">${r.kind}</span>${esc(r.name)}</h2>
+      ${r.preview?`<img class="pv" src="${r.preview}" alt="Ảnh đã thu nhỏ">`:''}
+      <div class="stats">
+        ${hasBase?`<div class="stat"><span>${baseLbl}</span><b>${fmt(r.htmlTokens)}</b></div>`:`<div class="stat"><span>Kích thước gốc</span><b>${fmt(Math.round(r.size/1024))} KB</b></div>`}
+        <div class="stat"><span>Token sau khi đổi</span><b>${fmt(r.tokens)}</b></div>
+        ${hasBase?`<div class="stat save"><span>Tiết kiệm</span><b>${save}%</b></div>`:''}
+        ${r.pages?`<div class="stat"><span>Số trang</span><b>${r.pages}</b></div>`:''}
+      </div>
+      ${hasBase?`<div class="bar" aria-hidden="true"><i style="width:${100-save}%"></i></div>`:''}
+      ${r.warn?`<p class="msg">${r.warn}</p>`:''}
+      <textarea readonly aria-label="Nội dung đã chuyển">${esc(r.text)}</textarea>
+      <div class="btns">
+        ${r.blob?`<button data-a="img" data-i="${i}">Tải ảnh đã thu nhỏ</button><button class="alt" data-a="copy" data-i="${i}">Sao chép ghi chú</button>`
+        :`<button data-a="copy" data-i="${i}">Sao chép</button><button class="alt" data-a="dl" data-i="${i}">Tải file</button>`}
+      </div>`;
+    out.append(d);
+  });
+  if(results.filter(r=>!r.error&&!r.blob&&r.text).length>1){
+    const b=document.createElement('div');
+    b.className='btns';
+    b.innerHTML='<button data-a="all">Gộp tất cả thành một file</button>';
+    out.append(b);
+  }
+}
+
+function download(name,data,type){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(data instanceof Blob?data:new Blob([data],{type:type||'text/plain;charset=utf-8'}));
+  a.download=name; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+const ext = () => $('#mode').value==='md'?'.md':'.txt';
+const base = n => n.replace(/\.[^.]+$/,'');
+
+$('#out').addEventListener('click',async e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  const a=b.dataset.a;
+  if(a==='copy'){
+    const t=results[b.dataset.i].text;
+    try{ await navigator.clipboard.writeText(t); b.textContent='Đã sao chép'; }
+    catch(_){ b.textContent='Hãy chọn và sao chép trong ô văn bản'; }
+    setTimeout(()=>b.textContent='Sao chép',1800);
+  }else if(a==='dl'){
+    const r=results[b.dataset.i]; download(base(r.name)+ext(),r.text);
+  }else if(a==='img'){
+    const r=results[b.dataset.i]; download(r.imgName,r.blob);
+  }else if(a==='all'){
+    const t=results.filter(r=>!r.error&&!r.blob&&r.text).map(r=>`# ===== ${r.name} =====\n\n${r.text}`).join('\n\n\n');
+    download('tong-hop'+ext(),t);
+  }
+});
+
+const OK=/\.(docx|pdf|xlsx|xls|csv|png|jpe?g|webp|gif|bmp)$/i;
+function pick(list){
+  files=[...list].filter(f=>OK.test(f.name)||f.type.startsWith('image/'));
+  if(!files.length){ $('#out').innerHTML='<p class="msg">Chỉ nhận .docx, .pdf, .xlsx, .xls, .csv và ảnh. Nếu là file .doc cũ, hãy mở bằng Word rồi Lưu thành .docx.</p>'; return; }
+  run();
+}
+$('#f').addEventListener('change',e=>pick(e.target.files));
+$('#mode').addEventListener('change',()=>files.length&&run());
+$('#imgmark').addEventListener('change',()=>files.length&&run());
+const drop=$('#drop');
+['dragenter','dragover'].forEach(v=>drop.addEventListener(v,e=>{e.preventDefault();drop.classList.add('over')}));
+['dragleave','drop'].forEach(v=>drop.addEventListener(v,e=>{e.preventDefault();drop.classList.remove('over')}));
+drop.addEventListener('drop',e=>pick(e.dataTransfer.files));
+</script>
+</body>
+</html>
